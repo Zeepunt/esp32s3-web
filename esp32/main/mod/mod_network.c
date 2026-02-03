@@ -6,6 +6,8 @@
  */
 #include <stdint.h>
 
+#include "sdkconfig.h"
+#include "driver/gpio.h"
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_mac.h"
@@ -20,10 +22,28 @@
 #define WIFI_AP_SSID           "esp32_web"
 #define WIFI_AP_PASSWORD       "esp32_web"
 
+/* SPI 以太网硬件配置 */
+#define SPI_ETH_HOST           SPI3_HOST
+#define SPI_ETH_CLOCK_HZ       (20 * 1000 * 1000)
+
+#define SPI_ETH_CS_GPIO        14
+#define SPI_ETH_SCLK_GPIO      18
+#define SPI_ETH_MISO_GPIO      17
+#define SPI_ETH_MOSI_GPIO      16
+
+#define SPI_ETH_INT_GPIO       19
+#define SPI_ETH_RESET_GPIO     20
+
 static const char *TAG = "mod_network";
 
 static esp_netif_t *s_wifi_sta = NULL;
 static esp_netif_t *s_wifi_ap = NULL;
+
+static esp_netif_t *s_eth = NULL;
+static esp_eth_mac_t *s_eth_mac = NULL;
+static esp_eth_phy_t *s_eth_phy = NULL;
+static esp_eth_handle_t s_eth_handle = NULL;
+static esp_eth_netif_glue_handle_t s_eth_glue = NULL;
 
 static void priv_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
@@ -67,13 +87,13 @@ static void priv_ip_event_handler(void *arg, esp_event_base_t event_base, int32_
     switch (event_id) {
         case IP_EVENT_STA_GOT_IP: {
             ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
-            ESP_LOGI(TAG, "STA new ip:" IPSTR, IP2STR(&event->ip_info.ip));
+            ESP_LOGI(TAG, "STA new ip: " IPSTR, IP2STR(&event->ip_info.ip));
             break;
         }
 
         case IP_EVENT_ETH_GOT_IP: {
             ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
-            ESP_LOGI(TAG, "ETH new ip:" IPSTR, IP2STR(&event->ip_info.ip));
+            ESP_LOGI(TAG, "ETH new ip: " IPSTR, IP2STR(&event->ip_info.ip));
             break;
         }
 
@@ -93,6 +113,73 @@ static void priv_net_init(void)
 
 static void priv_eth_init(void)
 {
+    esp_netif_config_t netif_cfg = ESP_NETIF_DEFAULT_ETH();
+    s_eth = esp_netif_new(&netif_cfg);
+    if (s_eth == NULL) {
+        ESP_LOGE(TAG, "esp_netif_new failed");
+        return;
+    }
+
+#if defined(CONFIG_ETH_USE_SPI_ETHERNET)
+    /* SPI Init */
+    gpio_install_isr_service(0);
+    spi_bus_config_t spi_bus_cfg = {
+        .miso_io_num = SPI_ETH_MISO_GPIO,
+        .mosi_io_num = SPI_ETH_MOSI_GPIO,
+        .sclk_io_num = SPI_ETH_SCLK_GPIO,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+    };
+
+    if (spi_bus_initialize(SPI_ETH_HOST, &spi_bus_cfg, SPI_DMA_CH_AUTO) != ESP_OK) {
+        ESP_LOGE(TAG, "spi_bus_initialize failed");
+        esp_netif_destroy(s_eth);
+        s_eth = NULL;
+        return;
+    }
+
+    spi_device_interface_config_t spi_dev_iface_cfg = {
+        .mode = 0,
+        .clock_speed_hz = SPI_ETH_CLOCK_HZ,
+        .spics_io_num = SPI_ETH_CS_GPIO,
+        .queue_size = 20,
+    };
+#endif
+
+    /* MAC Init */
+    eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
+#if defined(CONFIG_ETH_SPI_ETHERNET_W5500)
+    eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(SPI_ETH_HOST, &spi_dev_iface_cfg);
+    w5500_config.int_gpio_num = SPI_ETH_INT_GPIO;
+
+    s_eth_mac = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
+    if (s_eth_mac == NULL) {
+        ESP_LOGE(TAG, "esp_eth_mac_new_w5500 failed");
+    }
+#endif
+
+    /* PHY Init */
+    eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
+    phy_config.reset_gpio_num = SPI_ETH_RESET_GPIO;
+#if defined(CONFIG_ETH_SPI_ETHERNET_W5500)
+    s_eth_phy = esp_eth_phy_new_w5500(&phy_config);
+    if (s_eth_phy == NULL) {
+        ESP_LOGE(TAG, "esp_eth_phy_new_w5500 failed");
+    }
+#endif
+
+    esp_eth_config_t eth_config = ETH_DEFAULT_CONFIG(s_eth_mac, s_eth_phy);
+    ESP_ERROR_CHECK(esp_eth_driver_install(&eth_config, &s_eth_handle));
+
+    /* Set MAC Address */
+    uint8_t eth_mac[6] = {0};
+    ESP_ERROR_CHECK(esp_read_mac(eth_mac, ESP_MAC_ETH));
+    ESP_ERROR_CHECK(esp_eth_ioctl(s_eth_handle, ETH_CMD_S_MAC_ADDR, eth_mac));
+
+    s_eth_glue = esp_eth_new_netif_glue(s_eth_handle);
+    esp_netif_attach(s_eth, s_eth_glue);
+
+    ESP_ERROR_CHECK(esp_eth_start(s_eth_handle));
 }
 
 static void priv_wifi_init(void)

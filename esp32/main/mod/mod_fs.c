@@ -109,12 +109,16 @@ size_t mod_fs_write(FILE *fp, const void *buf, size_t size)
     return fwrite(buf, 1, size, fp);
 }
 
-char *mod_fs_read_content(mod_fs_type_t type, const char *path)
+void *mod_fs_file_read(mod_fs_type_t type, const char *path)
 {
     FILE *fp = NULL;
 
     char *buf = NULL;
     size_t size = 0;
+
+    if (path == NULL) {
+        return NULL;
+    }
 
     fp = mod_fs_open(type, path, "r");
     if (fp == NULL) {
@@ -138,13 +142,33 @@ char *mod_fs_read_content(mod_fs_type_t type, const char *path)
     return buf;
 }
 
-void mod_fs_free_content(char *content)
+int mod_fs_file_write(mod_fs_type_t type, const char *path, const void *buf, size_t size)
 {
-    if (content == NULL) {
+    FILE *fp = NULL;
+    size_t write_len = 0;
+
+    if ((path == NULL) || (buf == NULL) || (size == 0)) {
+        return -1;
+    }
+
+    fp = mod_fs_open(type, path, "w");
+    if (fp == NULL) {
+        return -1;
+    }
+
+    write_len = fwrite(buf, 1, size, fp);
+    mod_fs_close(fp);
+
+    return write_len;
+}
+
+void mod_fs_buf_free(void *buf)
+{
+    if (buf == NULL) {
         return;
     }
 
-    free(content);
+    free(buf);
 }
 
 int mod_fs_init(mod_fs_type_t type)

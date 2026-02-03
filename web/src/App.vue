@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import Login from './components/Login.vue'
 </script>
 
 <template>
   <div id="app">
-    <Login />
+    <h1>Welcome to the App</h1>
+    <p>Authentication will be handled by browser's default login prompt.</p>
   </div>
 </template>
 
@@ -21,5 +21,20 @@ body {
   height: 100vh;
   margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #f5f5f5;
+}
+
+#app h1 {
+  color: #333;
+  margin-bottom: 1rem;
+}
+
+#app p {
+  color: #666;
+  font-size: 1.1rem;
 }
 </style>

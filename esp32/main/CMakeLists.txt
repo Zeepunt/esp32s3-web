@@ -7,7 +7,9 @@ set(mod_src
 
 set(http_server_src
     "http_server/http_server.c"
+    "http_server/http_auth.c"
     "http_server/http_uri_index.c"
+    "http_server/http_uri_system.c"
 )
 
 idf_component_register(SRCS

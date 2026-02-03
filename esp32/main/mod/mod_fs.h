@@ -23,13 +23,73 @@ typedef enum {
     MOD_FS_FATFS    = 3,
 } mod_fs_type_t;
 
+/**
+ * @brief Open file
+ * @param type File system type
+ * @param path File path
+ * @param mode File mode
+ * @return
+ *  - File pointer: success
+ *  - NULL: failure
+ */
 FILE *mod_fs_open(mod_fs_type_t type, const char *path, const char *mode);
+
+/**
+ * @brief Close file
+ * @param fp File pointer
+ */
 void mod_fs_close(FILE *fp);
+
+/**
+ * @brief Read file
+ * @param fp File pointer
+ * @param buf Buffer
+ * @param size Buffer size
+ * @return
+ *  - Number of bytes read: success
+ *  - 0: end of file
+ *  - -1: failure
+ */
 size_t mod_fs_read(FILE *fp, void *buf, size_t size);
+
+/**
+ * @brief Write file
+ * @param fp File pointer
+ * @param buf Buffer
+ * @param size Buffer size
+ * @return
+ *  - Number of bytes written: success
+ *  - -1: failure
+ */
 size_t mod_fs_write(FILE *fp, const void *buf, size_t size);
 
-char *mod_fs_read_content(mod_fs_type_t type, const char *path);
-void mod_fs_free_content(char *content);
+/**
+ * @brief Read file
+ * @param type File system type
+ * @param path File path
+ * @return
+ *  - Buffer pointer: success
+ *  - NULL: failure
+ */
+void *mod_fs_file_read(mod_fs_type_t type, const char *path);
+
+/**
+ * @brief Write file
+ * @param type File system type
+ * @param path File path
+ * @param buf Buffer
+ * @param size Buffer size
+ * @return
+ *  - 0: success
+ *  - -1: failure
+ */
+int mod_fs_file_write(mod_fs_type_t type, const char *path, const void *buf, size_t size);
+
+/**
+ * @brief Free buffer
+ * @param buf Buffer pointer
+ */
+void mod_fs_buf_free(void *buf);
 
 /**
  * @brief Initialize File System Module

@@ -13,6 +13,7 @@
 #include "esp_http_server.h"
 
 #include "http_uri_index.h"
+#include "http_uri_system.h"
 
 #define HTTP_SERVER_PORT    80
 
@@ -31,6 +32,13 @@ static const httpd_uri_t s_assets_uri = {
     .uri = "/assets/*",
     .method = HTTP_GET,
     .handler = http_server_uri_index_handle,
+    .user_ctx = NULL,
+};
+
+static const httpd_uri_t s_system_uri = {
+    .uri = "/system/*",
+    .method = HTTP_ANY,
+    .handler = http_server_uri_system_handle,
     .user_ctx = NULL,
 };
 
@@ -56,6 +64,7 @@ int http_server_init(void)
 
     httpd_register_uri_handler(s_httpd_handle, &s_index_uri);
     httpd_register_uri_handler(s_httpd_handle, &s_assets_uri);
+    httpd_register_uri_handler(s_httpd_handle, &s_system_uri);
 
     return 0;
 }
